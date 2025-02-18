@@ -1,0 +1,7 @@
+Jinja2==3.1.4
+python-gitlab==4.10.0
+requests==2.32.3
+ruamel.yaml==0.18.6
+pydantic-settings==2.5.2
+pytz==2024.1
+HiYaPyCo==0.7.0
