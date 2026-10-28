@@ -12,14 +12,29 @@ from ruamel.yaml import YAML
 
 def get_credentials() -> ():
     """
-        Метод для получения кредов для подключения к gitlab через телепорт
+        Метод для получения кредов для подключения к gitlab через телепорт.
+        Клиент tsh берётся из настройки TSH_PATH, по умолчанию из PATH.
     """
-    output = None
-    logger.info('Авторизация в teleport')
+    tsh_path = settings.tsh_path
+    logger.info(f'Авторизация в teleport: {tsh_path}')
     try:
-        output = subprocess.getoutput('C:\\utils\\tsh app login gitlab')
-    except Exception as e:
-        logger.exception(f'Ошибка при авторизации в teleport: {e}')
+        completed = subprocess.run(
+            [tsh_path, 'app', 'login', 'gitlab'],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        logger.exception(f'Ошибка при авторизации в teleport: {error}')
+        raise ValueError(
+            f'Не найден клиент Teleport «{tsh_path}». '
+            f'Добавьте tsh в PATH или задайте полный путь в TSH_PATH.'
+        ) from error
+    except Exception as error:
+        logger.exception(f'Ошибка при авторизации в teleport: {error}')
+        raise
+
+    output = f'{completed.stdout or ""}\n{completed.stderr or ""}'
 
     cert_regex = r'(?<=cert\s").+(?="\s\\)'
     key_regex = r'(?<=key\s").+(?="\s\\)'
@@ -33,7 +48,7 @@ def get_credentials() -> ():
         raise ValueError(f'Не удаётся распознать путь к сертификату. Найдено путей: {len(cert_list)}')
     if len(key_list) != 1:
         raise ValueError(f'Не удаётся распознать путь к ключу. Найдено путей: {len(key_list)}')
-    if len(key_list) != 1:
+    if len(url_list) != 1:
         raise ValueError(f'Не удаётся распознать URL. Найдено URL: {len(url_list)}')
 
     return cert_list[0], key_list[0], url_list[0]
@@ -91,6 +106,19 @@ def get_file(project: Project, file_path: str, branch: str) -> str:
         logger.debug(f'Файл {file_path} в проекте {project.id} не найден')
 
 
+def commit_message(action: str, file_path: str) -> str:
+    """
+        Сообщение коммита зависит от файла и действия.
+    """
+    messages = {
+        ('create', 'README.yaml'): 'Создан новый файл README.yaml, который необходимо заполнить',
+        ('update', 'README.yaml'): 'Обновлён README.yaml по изменениям .helm/values-prod.yaml',
+        ('create', 'README.md'): 'Создан файл README.md',
+        ('update', 'README.md'): 'Обновлён раздел документации в README.md',
+    }
+    return messages.get((action, file_path), f'{action} {file_path}')
+
+
 def create_commit(project: Project, target_branch: str, file_path: str, action: str, content: str):
     """
         Метод создаёт и пушит коммит в целевую ветку проекта
@@ -112,7 +140,7 @@ def create_commit(project: Project, target_branch: str, file_path: str, action: 
     # Создаем или обновляем файл
     commit_data = {
         'branch': target_branch,
-        'commit_message': "Создан новый файл README.yaml, который необходимо заполнить",
+        'commit_message': commit_message(action, file_path),
         'actions': [{
             'action': action,  # create или 'update' для существующих файлов
             'file_path': file_path,

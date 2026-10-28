@@ -76,6 +76,10 @@ class Settings(BaseSettings):
 
     gitlab_url: HttpUrl = Field('https://git.edu-infra.ru', frozen=True,
                                 description='URL для доступа к GitLab. При запуске в локальном окружении будет использован URL полученный от Teleport после авторизации')
+    tsh_path: str = Field(
+        default='tsh',
+        description='Команда или путь к клиенту Teleport. По умолчанию tsh из PATH. Переопределяется переменной TSH_PATH',
+    )
 
     product: Optional[str] = Field(default=None, frozen=True, )
     namespace: str = Field(default='', frozen=True, alias='CI_PROJECT_ROOT_NAMESPACE')
